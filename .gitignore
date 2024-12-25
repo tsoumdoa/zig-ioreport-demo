@@ -1,0 +1,11 @@
+dist
+app.config.timestamp_*.js
+/.zig-cache
+/zig-out
+
+.env
+.env*.local
+gitignore
+
+.DS_Store
+Thumbs.db

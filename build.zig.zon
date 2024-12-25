@@ -1,0 +1,17 @@
+.{
+    .name = "zig-ioreport",
+    .version = "0.0.0",
+
+    .dependencies = .{
+        .@"zig-objc" = .{
+            .url = "git+https://github.com/mitchellh/zig-objc.git#9b8ba849b0f58fe207ecd6ab7c147af55b17556e",
+            .hash = "1220e17e64ef0ef561b3e4b9f3a96a2494285f2ec31c097721bf8c8677ec4415c634",
+        },
+    },
+
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
