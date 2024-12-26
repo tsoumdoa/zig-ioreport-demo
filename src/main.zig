@@ -18,39 +18,39 @@ const IOReportSubscription = extern struct {
 // const IOReportSubscriptionRef = *const IOReportSubscription;
 
 //IReport bindings
-pub extern "c" fn IOReportCopyAllChannels(a: u64, b: u64) CFDictionaryRef;
-pub extern "c" fn IOReportCopyChannelsInGroup(a: CFStringRef, b: CFStringRef, c: u64, d: u64, e: u64) CFDictionaryRef;
-pub extern "c" fn IOreportMergeChannels(a: CFDictionaryRef, b: CFDictionaryRef, nil: CFTypeRef) void;
-pub extern "c" fn IOReportCreateSubscription(a: CVoidRef, b: CFMutableDictionaryRef, c: *CFMutableDictionaryRef, d: u64, e: CFTypeRef) callconv(.C) IOReportSubscription;
-pub extern "c" fn IOReportCreateSamples(a: IOReportSubscription, b: CFMutableDictionaryRef, c: CFTypeRef) callconv(.C) CFDictionaryRef;
-pub extern "c" fn IOReportCreateSamplesDelta(a: CFDictionaryRef, b: CFDictionaryRef) CFDictionaryRef;
-pub extern "c" fn IOReportChannelGetGroup(a: CFDictionaryRef) CFStringRef;
-pub extern "c" fn IOReportChannelGetSubGroup(a: CFDictionaryRef) CFStringRef;
-pub extern "c" fn IOReportChannelGetChannelName(a: CFDictionaryRef) CFStringRef;
-pub extern "c" fn IOReportSimpleGetIntegerValue(a: CFDictionaryRef, b: i32) i64;
-pub extern "c" fn IOReportChannelGetUnitLabel(a: CFDictionaryRef) CFStringRef;
-pub extern "c" fn IOReportStateGetCount(a: CFDictionaryRef) i32;
-pub extern "c" fn IOReportStateGetNameForIndex(a: CFDictionaryRef, b: i32) CFStringRef;
-pub extern "c" fn IOReportStateGetResidency(a: CFDictionaryRef, b: i32) i64;
-pub extern "c" fn CFShow(obj: CFDictionaryRef) void;
+pub extern "objc" fn IOReportCopyAllChannels(a: u64, b: u64) CFDictionaryRef;
+pub extern "objc" fn IOReportCopyChannelsInGroup(a: CFStringRef, b: CFStringRef, c: u64, d: u64, e: u64) callconv(.C) CFDictionaryRef;
+pub extern "objc" fn IOReportMergeChannels(a: CFDictionaryRef, b: CFDictionaryRef, nil: CFTypeRef) void;
+pub extern "objc" fn IOReportCreateSubscription(a: CVoidRef, b: CFMutableDictionaryRef, c: *CFMutableDictionaryRef, d: u64, e: CFTypeRef) callconv(.C) IOReportSubscription;
+pub extern "objc" fn IOReportCreateSamples(a: IOReportSubscription, b: CFMutableDictionaryRef, c: CFTypeRef) callconv(.C) CFDictionaryRef;
+pub extern "objc" fn IOReportCreateSamplesDelta(a: CFDictionaryRef, b: CFDictionaryRef) CFDictionaryRef;
+pub extern "objc" fn IOReportChannelGetGroup(a: CFDictionaryRef) CFStringRef;
+pub extern "objc" fn IOReportChannelGetSubGroup(a: CFDictionaryRef) CFStringRef;
+pub extern "objc" fn IOReportChannelGetChannelName(a: CFDictionaryRef) CFStringRef;
+pub extern "objc" fn IOReportSimpleGetIntegerValue(a: CFDictionaryRef, b: i32) i64;
+pub extern "objc" fn IOReportChannelGetUnitLabel(a: CFDictionaryRef) CFStringRef;
+pub extern "objc" fn IOReportStateGetCount(a: CFDictionaryRef) i32;
+pub extern "objc" fn IOReportStateGetNameForIndex(a: CFDictionaryRef, b: i32) CFStringRef;
+pub extern "objc" fn IOReportStateGetResidency(a: CFDictionaryRef, b: i32) i64;
+pub extern "objc" fn CFShow(obj: CFDictionaryRef) void;
 
 const CFIndex = isize;
 const CFAllocatorRef = *const anyopaque;
 const CFStringEncoding = u32;
 
 //CoreFoundation bindings
-extern "c" fn CFDictionaryGetCount(theDict: CFDictionaryRef) CFIndex;
-extern "c" fn CFDictionaryCreateMutableCopy(allocator: CFAllocatorRef, capacity: CFIndex, theDict: CFDictionaryRef) CFMutableDictionaryRef;
-extern "c" fn CFRelease(cf: CFTypeRef) void;
-extern "c" fn CFStringCreateWithBytesNoCopy(
+extern "objc" fn CFDictionaryGetCount(theDict: CFDictionaryRef) CFIndex;
+extern "objc" fn CFDictionaryCreateMutableCopy(allocator: CFAllocatorRef, capacity: CFIndex, theDict: CFDictionaryRef) callconv(.C) CFMutableDictionaryRef;
+extern "objc" fn CFRelease(cf: CFTypeRef) void;
+extern "objc" fn CFStringCreateWithBytesNoCopy(
     alloc: CFAllocatorRef,
-    bytes: [*c]const u8,
+    bytes: *const u8,
     numBytes: CFIndex,
     encoding: CFStringEncoding,
     isExternalRepresentation: bool,
     contentsDeallocator: CFAllocatorRef,
 ) CFStringRef;
-extern "c" fn CFDictionaryGetValue(theDict: CFDictionaryRef, key: CFStringRef) CFTypeRef;
+extern "objc" fn CFDictionaryGetValue(theDict: CFDictionaryRef, key: CFStringRef) CFTypeRef;
 
 const kCFAllocatorDefault: CFAllocatorRef = @as(*anyopaque, undefined);
 const kCFStringEncodingUTF8: CFStringEncoding = 0x08000100;
@@ -64,7 +64,7 @@ inline fn cfString(str: []const u8) CFStringRef {
 
     return CFStringCreateWithBytesNoCopy(
         kCFAllocatorDefault,
-        @as([*c]const u8, @ptrCast((str.ptr))),
+        @as(*const u8, @ptrCast((str.ptr))),
         @as(isize, @intCast(aligned_len)),
         kCFStringEncodingUTF8,
         false,
@@ -73,30 +73,30 @@ inline fn cfString(str: []const u8) CFStringRef {
 }
 
 pub fn main() !void {
-    const grp = "CPU Stats";
-    const sub_grp = "CPU Core Performance States";
-    const grp_cf = cfString(grp);
-    const sub_grp_cf = cfString(sub_grp);
+    // const grp = "CPU Stats";
+    // const sub_grp = "CPU Core Performance States";
+    // const grp_cf = cfString(grp);
+    // const sub_grp_cf = cfString(sub_grp);
 
-    std.debug.print("grp: {any}\n", .{grp_cf});
-    std.debug.print("sub_grp: {any}\n", .{sub_grp_cf});
-    const all_chan = IOReportCopyChannelsInGroup(grp_cf, sub_grp_cf, 0, 0, 0);
-    // const all_chan = IOReportCopyAllChannels(0, 0);
-    const mut_chan = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, CFDictionaryGetCount(all_chan), all_chan);
+    const chan = IOReportCopyChannelsInGroup(cfString("CPU Stats"), cfString("CPU Core Performance States"), 0, 0, 0);
+    const chan2 = IOReportCopyChannelsInGroup(cfString("Energy Model"), undefined, 0, 0, 0);
+    // const chan = IOReportCopyAllChannels(0, 0);
+    // chan = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, CFDictionaryGetCount(chan), chan);
     // CFRelease(grp_cf);
     // CFRelease(sub_grp_cf);
+    IOReportMergeChannels(chan, chan2, undefined);
 
     // const size = CFDictionaryGetCount(chan);
     // const mut_chan = CFDictionaryCreateMutableCopy(kCFAllocatorDefault, size, chan);
-    CFRelease(mut_chan);
-    CFShow(mut_chan);
+    // CFRelease(mut_chan);
+    // CFShow(chan);
 
     // std.debug.print("mut_chan: {*}\n", .{mut_chan});
 
     const key = cfString("IOReportChannels");
     // defer std.c.free(key);
-    const val = CFDictionaryGetValue(mut_chan, key);
-
+    const val = CFDictionaryGetValue(chan, key);
+    //
     std.debug.print("count: {any}\n", .{val});
     // const count = CFDictionaryGetCount(chan);
     // std.debug.print("count: {d}\n", .{count});
@@ -106,8 +106,10 @@ pub fn main() !void {
     // _ = val;
     // std.debug.print("val: {any}\n", .{val});
     // std.debug.print("val: {any}\n", .{count});
-    const show = CFShow(mut_chan);
-    _ = show;
+    CFShow(chan);
+
+    const size = CFDictionaryGetCount(chan);
+    std.debug.print("size: {d}\n", .{size});
 
     // var s: CFMutableDictionaryRef = @as(CFMutableDictionaryRef, undefined);
     // const rs = IOReportCreateSubscription(undefined, mut_chan, &s, 0, undefined);
