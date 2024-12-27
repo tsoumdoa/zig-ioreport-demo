@@ -1,4 +1,4 @@
-const CF = @import("cf-dic.zig");
+const CF = @import("cf.zig");
 const CFMutableDictionaryRef = CF.CFMutableDictionaryRef;
 
 //IOKit bindings
