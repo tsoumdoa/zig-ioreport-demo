@@ -44,7 +44,7 @@ const IO_REPORTS = .{ .{ "Energy Model", "" }, .{ "CPU Stats", "CPU Core Perform
 
 pub inline fn sampleIOR(rs: *const ior.IOReportSubscription, mut_chan: cf.CFMutableDictionaryRef) CFArrayRef {
     const sample_1 = ior.IOReportCreateSamples(rs, mut_chan, undefined);
-    std.time.sleep(1 * std.time.ns_per_ms);
+    std.time.sleep(10 * std.time.ns_per_ms);
     const sample_2 = ior.IOReportCreateSamples(rs, mut_chan, undefined);
     const d = ior.IOReportCreateSamplesDelta(sample_1, sample_2, undefined);
     CFRelease(sample_1);
