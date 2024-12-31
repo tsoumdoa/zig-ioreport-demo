@@ -37,7 +37,7 @@ const IorData = struct {
     subgroup: []const u8,
     channel: []const u8,
     unit: []const u8,
-    item: *const CFDictionaryRef,
+    item: CFDictionaryRef,
 };
 
 const IO_REPORTS = .{ .{ "Energy Model", "" }, .{ "CPU Stats", "CPU Core Performance States" }, .{ "CPU Stats", "CPU Core Performance States" }, .{ "GPU Stats", "GPU Performance States" } };
@@ -79,18 +79,19 @@ pub fn main() !void {
     }
     chan_dicts.deinit();
     const key_ior_chan = cfString("IOReportChannels");
-    defer CFRelease(key_ior_chan);
     const val = cf.CFDictionaryGetValue(chan, key_ior_chan);
     assert(val != null);
-    defer CFRelease(chan);
+    CFRelease(key_ior_chan);
 
     const size = cf.CFDictionaryGetCount(chan);
     const mut_chan = cf.CFDictionaryCreateMutableCopy(cf.kCFAllocatorDefault, size, chan);
-    defer CFRelease(mut_chan);
+    CFRelease(chan);
 
     var s: CFMutableDictionaryRef = @as(CFMutableDictionaryRef, undefined);
     const rs = ior.IOReportCreateSubscription(undefined, mut_chan, &s, 0, undefined);
-    defer CFRelease(s);
+    CFRelease(s);
+
+    defer CFRelease(mut_chan);
     defer CFRelease(rs);
 
     var itter: usize = 0;
@@ -99,7 +100,6 @@ pub fn main() !void {
         var arena_impl = std.heap.ArenaAllocator.init(gpa);
         const arena = arena_impl.allocator();
         var iors = std.ArrayList(*IorData).init(arena);
-        iors.ensureTotalCapacity(100) catch unreachable;
 
         const io_arry = sampleIOR(rs, mut_chan);
         var io_it = IOReportIterator.init(io_arry);
@@ -108,16 +108,25 @@ pub fn main() !void {
             const cf_val = cf.CFArrayGetValueAtIndex(io_it.report, @as(isize, @intCast(io_it.index)));
             const item = @as(CFDictionaryRef, @ptrCast(cf_val));
 
-            const group = try cf.cfioGetGroup(item, arena);
-            const subgroup = try cf.cfioGetSubgroup(item, arena);
-            const channel = try cf.cfioGetChannel(item, arena);
-            const unit = try cf.cfioGetUnit(item, arena);
+            // no need to CFRelease cfstr
+            const group_cfstr = ior.IOReportChannelGetGroup(item);
+            const group = try cf.decodeCfstr(group_cfstr, arena);
+
+            const subgroup_cfstr = ior.IOReportChannelGetSubGroup(item);
+            const subgroup = try cf.decodeCfstr(subgroup_cfstr, arena);
+
+            const channel_cfstr = ior.IOReportChannelGetChannelName(item);
+            const channel = try cf.decodeCfstr(channel_cfstr, arena);
+
+            const unit_cfstr = ior.IOReportChannelGetUnitLabel(item);
+            const unit = try cf.decodeCfstr(unit_cfstr, arena);
+
             const ior_data = IorData{
                 .group = group,
                 .subgroup = subgroup,
                 .channel = channel,
                 .unit = unit,
-                .item = &item,
+                .item = item,
             };
             const value = try arena.create(IorData);
             value.* = ior_data;
@@ -127,7 +136,7 @@ pub fn main() !void {
             std.debug.print("group: {s}, subgroup: {s}, channel: {s}, unit: {s}, item:{any}\n", .{ item.group, item.subgroup, item.channel, item.unit, item.item });
         }
         // this stops memory leaks but crashes
-        // CFRelease(io_arry);
+        CFRelease(io_arry);
         arena_impl.deinit();
     }
 }
