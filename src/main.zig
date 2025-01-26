@@ -2,13 +2,10 @@ const std = @import("std");
 const debug = std.debug;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
-
 const iok = @import("./bindings/io-kit.zig");
 const cf = @import("./bindings/cf.zig");
 const ior = @import("./bindings/io-report.zig");
 const soc = @import("./utils//soc-info.zig");
-const hid = @import("./utils/hid-sensors.zig");
-const smc = @import("./utils/smc.zig");
 const CFMutableDictionaryRef = cf.CFMutableDictionaryRef;
 const CFDictionaryRef = cf.CFDictionaryRef;
 const CFStringRef = cf.CFStringRef;
@@ -107,18 +104,6 @@ pub fn main() !void {
     defer CFRelease(mut_chan);
     defer CFRelease(rs);
 
-    //HID
-    var h = try hid.HIDSensors.init();
-
-    //SMC
-    var s = try smc.initSmc(gpa);
-    defer s.smc.deinit();
-    std.debug.print("conn: {d}\n", .{s.smc.conn});
-    // _ = s;
-    // const smc = s.smc;
-    // const cpu_sensors = smc.cpu_sensors;
-    // const gpu_sensors = smc.gpu_sensors;
-
     while (true) {
         var sample_arena_impl = std.heap.ArenaAllocator.init(gpa);
         const sample_arena = sample_arena_impl.allocator();
@@ -155,16 +140,7 @@ pub fn main() !void {
             value.* = ior_data;
             try iors.append(value);
         }
-        // for (iors.items) |item| {
-        //     std.debug.print("group: {s}, subgroup: {s}, channel: {s}, unit: {s}, item:{any}\n", .{ item.group, item.subgroup, item.channel, item.unit, item.item });
-        // }
 
-        //HID
-        const r = try h.sample(sample_arena);
-        _ = r;
-        // for (r) |item| {
-        //     std.debug.print("{s}: {d:2}\n", .{ item.key, item.val });
-        // }
         CFRelease(io_arry);
         sample_arena_impl.deinit();
         std.debug.print("-------------\n", .{});
