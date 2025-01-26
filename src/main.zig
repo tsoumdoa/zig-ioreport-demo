@@ -1,10 +1,14 @@
 const std = @import("std");
+const debug = std.debug;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
-const IOKit = @import("io-kit.zig");
-const cf = @import("cf.zig");
-const ior = @import("io-report.zig");
+const iok = @import("./bindings/io-kit.zig");
+const cf = @import("./bindings/cf.zig");
+const ior = @import("./bindings/io-report.zig");
+const soc = @import("./utils//soc-info.zig");
+const hid = @import("./utils/hid-sensors.zig");
+const smc = @import("./utils/smc.zig");
 const CFMutableDictionaryRef = cf.CFMutableDictionaryRef;
 const CFDictionaryRef = cf.CFDictionaryRef;
 const CFStringRef = cf.CFStringRef;
@@ -16,6 +20,8 @@ const CFRelease = cf.CFRelease;
 const CFArrayGetCount = cf.CFArrayGetCount;
 const CFShow = cf.CFShow;
 const CFRetain = cf.CFRetain;
+
+const SAMPLE_INTERVAL_MS: u64 = 10;
 
 const IOReportIterator = struct {
     report: CFArrayRef,
@@ -44,7 +50,7 @@ const IO_REPORTS = .{ .{ "Energy Model", "" }, .{ "CPU Stats", "CPU Core Perform
 
 pub inline fn sampleIOR(rs: *const ior.IOReportSubscription, mut_chan: cf.CFMutableDictionaryRef) CFArrayRef {
     const sample_1 = ior.IOReportCreateSamples(rs, mut_chan, undefined);
-    std.time.sleep(10 * std.time.ns_per_ms);
+    std.time.sleep(SAMPLE_INTERVAL_MS * std.time.ns_per_ms);
     const sample_2 = ior.IOReportCreateSamples(rs, mut_chan, undefined);
     const d = ior.IOReportCreateSamplesDelta(sample_1, sample_2, undefined);
     CFRelease(sample_1);
@@ -60,8 +66,15 @@ pub fn main() !void {
     var gpa_impl: std.heap.GeneralPurposeAllocator(.{}) = .{};
     const gpa = gpa_impl.allocator();
 
-    var chan_dicts = ArrayList(CFDictionaryRef).init(gpa);
+    //SOC
+    var soc_arena_impl = std.heap.ArenaAllocator.init(gpa);
+    defer soc_arena_impl.deinit();
+    const soc_arena = soc_arena_impl.allocator();
+    const soc_info = try soc.getSocInfo(soc_arena);
+    _ = soc_info;
 
+    //IOR
+    var chan_dicts = ArrayList(CFDictionaryRef).init(gpa);
     inline for (IO_REPORTS) |report| {
         const grp = cfString(report[0]);
         const sub_grp = if (report[1].len == 0) null else cfString(report[1]);
@@ -87,19 +100,29 @@ pub fn main() !void {
     const mut_chan = cf.CFDictionaryCreateMutableCopy(cf.kCFAllocatorDefault, size, chan);
     CFRelease(chan);
 
-    var s: CFMutableDictionaryRef = @as(CFMutableDictionaryRef, undefined);
-    const rs = ior.IOReportCreateSubscription(undefined, mut_chan, &s, 0, undefined);
-    CFRelease(s);
+    var cf_mut_dic: CFMutableDictionaryRef = @as(CFMutableDictionaryRef, undefined);
+    const rs = ior.IOReportCreateSubscription(undefined, mut_chan, &cf_mut_dic, 0, undefined);
+    CFRelease(cf_mut_dic);
 
     defer CFRelease(mut_chan);
     defer CFRelease(rs);
 
-    var itter: usize = 0;
+    //HID
+    var h = try hid.HIDSensors.init();
 
-    while (true) : (itter += 1) {
-        var arena_impl = std.heap.ArenaAllocator.init(gpa);
-        const arena = arena_impl.allocator();
-        var iors = std.ArrayList(*IorData).init(arena);
+    //SMC
+    var s = try smc.initSmc(gpa);
+    defer s.smc.deinit();
+    std.debug.print("conn: {d}\n", .{s.smc.conn});
+    // _ = s;
+    // const smc = s.smc;
+    // const cpu_sensors = smc.cpu_sensors;
+    // const gpu_sensors = smc.gpu_sensors;
+
+    while (true) {
+        var sample_arena_impl = std.heap.ArenaAllocator.init(gpa);
+        const sample_arena = sample_arena_impl.allocator();
+        var iors = std.ArrayList(*IorData).init(sample_arena);
 
         const io_arry = sampleIOR(rs, mut_chan);
         var io_it = IOReportIterator.init(io_arry);
@@ -110,16 +133,16 @@ pub fn main() !void {
 
             // no need to CFRelease cfstr
             const group_cfstr = ior.IOReportChannelGetGroup(item);
-            const group = try cf.decodeCfstr(group_cfstr, arena);
+            const group = try cf.decodeCfstr(group_cfstr, sample_arena);
 
             const subgroup_cfstr = ior.IOReportChannelGetSubGroup(item);
-            const subgroup = try cf.decodeCfstr(subgroup_cfstr, arena);
+            const subgroup = try cf.decodeCfstr(subgroup_cfstr, sample_arena);
 
             const channel_cfstr = ior.IOReportChannelGetChannelName(item);
-            const channel = try cf.decodeCfstr(channel_cfstr, arena);
+            const channel = try cf.decodeCfstr(channel_cfstr, sample_arena);
 
             const unit_cfstr = ior.IOReportChannelGetUnitLabel(item);
-            const unit = try cf.decodeCfstr(unit_cfstr, arena);
+            const unit = try cf.decodeCfstr(unit_cfstr, sample_arena);
 
             const ior_data = IorData{
                 .group = group,
@@ -128,15 +151,22 @@ pub fn main() !void {
                 .unit = unit,
                 .item = item,
             };
-            const value = try arena.create(IorData);
+            const value = try sample_arena.create(IorData);
             value.* = ior_data;
             try iors.append(value);
         }
-        for (iors.items) |item| {
-            std.debug.print("group: {s}, subgroup: {s}, channel: {s}, unit: {s}, item:{any}\n", .{ item.group, item.subgroup, item.channel, item.unit, item.item });
-        }
-        // this stops memory leaks but crashes
+        // for (iors.items) |item| {
+        //     std.debug.print("group: {s}, subgroup: {s}, channel: {s}, unit: {s}, item:{any}\n", .{ item.group, item.subgroup, item.channel, item.unit, item.item });
+        // }
+
+        //HID
+        const r = try h.sample(sample_arena);
+        _ = r;
+        // for (r) |item| {
+        //     std.debug.print("{s}: {d:2}\n", .{ item.key, item.val });
+        // }
         CFRelease(io_arry);
-        arena_impl.deinit();
+        sample_arena_impl.deinit();
+        std.debug.print("-------------\n", .{});
     }
 }

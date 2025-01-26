@@ -59,6 +59,22 @@ pub fn build(b: *std.Build) void {
 
     const run_exe_unit_tests = b.addRunArtifact(exe_unit_tests);
 
+    const iokit_test = b.addTest(.{
+        .root_source_file = b.path("src/io-kit.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    iokit_test.linkSystemLibrary("IOReport");
+    iokit_test.linkFramework("IOKit");
+    iokit_test.linkFramework("CoreFoundation");
+    iokit_test.root_module.addImport("objc", b.dependency("zig-objc", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("objc"));
+
+    const run_iokit_test = b.addRunArtifact(iokit_test);
+
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_exe_unit_tests.step);
+    test_step.dependOn(&run_iokit_test.step);
 }
