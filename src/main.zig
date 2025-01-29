@@ -18,7 +18,7 @@ const CFArrayGetCount = cf.CFArrayGetCount;
 const CFShow = cf.CFShow;
 const CFRetain = cf.CFRetain;
 
-const SAMPLE_INTERVAL_MS: u64 = 10;
+const SAMPLE_INTERVAL_MS: u64 = 1000;
 
 const IOReportIterator = struct {
     report: CFArrayRef,
@@ -59,6 +59,13 @@ pub inline fn sampleIOR(rs: *const ior.IOReportSubscription, mut_chan: cf.CFMuta
     return io_arry;
 }
 
+pub inline fn calcFreq(item: CFDictionaryRef, cores: usize) f64 {
+    _ = item;
+    _ = cores;
+    //todo
+    return 0;
+}
+
 pub fn main() !void {
     var gpa_impl: std.heap.GeneralPurposeAllocator(.{}) = .{};
     const gpa = gpa_impl.allocator();
@@ -68,7 +75,12 @@ pub fn main() !void {
     defer soc_arena_impl.deinit();
     const soc_arena = soc_arena_impl.allocator();
     const soc_info = try soc.getSocInfo(soc_arena);
-    _ = soc_info;
+    std.debug.print("{s}\n", .{soc_info.mac_model});
+    std.debug.print("{s}\n", .{soc_info.chip_name});
+    std.debug.print("ram: {d}gb\n", .{soc_info.memory_gb});
+    std.debug.print("ecpu: {d}\n", .{soc_info.ecpu_cores});
+    std.debug.print("pcpu: {d}\n", .{soc_info.pcpu_cores});
+    std.debug.print("gpu: {d}\n", .{soc_info.gpu_cores});
 
     //IOR
     var chan_dicts = ArrayList(CFDictionaryRef).init(gpa);
@@ -139,6 +151,29 @@ pub fn main() !void {
             const value = try sample_arena.create(IorData);
             value.* = ior_data;
             try iors.append(value);
+        }
+
+        for (iors.items) |v| {
+            if (std.mem.eql(u8, v.group, "CPU Stats")) {
+                {
+                    const found = std.mem.indexOf(u8, v.channel, "ECPU");
+                    if (found != null) {
+                        std.debug.print("ecpu: {any}\n", .{v.item});
+                        // todo...
+                        // const freq = calcFreq(v.item, soc_info.ecpu_cores);
+                    }
+                }
+
+                {
+                    const found = std.mem.indexOf(u8, v.channel, "PCPU");
+                    if (found != null) {
+                        std.debug.print("ecpu: {any}\n", .{v.item});
+                        // todo...
+                        // const freq = calcFreq(v.item, soc_info.ecpu_cores);
+                    }
+                }
+                //reso of code...
+            }
         }
 
         CFRelease(io_arry);
